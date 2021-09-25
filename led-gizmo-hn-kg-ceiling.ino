@@ -99,8 +99,8 @@ DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_BACKGROUNDBRIGHTNESS, 16, 1, 25
 DECLARE_EFFECT_SETTINGS_COLOR(GizmoLED::VARNAME_COLOR, 0xFF, 0xFF, 0xFF)
 DECLARE_EFFECT_SETTINGS_COLOR(GizmoLED::VARNAME_COLORBACKGROUND, 0x11, 0, 0x44)
 DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_SPEED, 10, 1, 100)
-DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_DECAY, 10, 1, 100)
-DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_LENGTH, 10, 1, 50)
+DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_DECAY, 36, 1, 100)
+DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_LENGTH, 25, 1, 50)
 DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_SENSITIVITY, 10, 1, 50)
 DECLARE_EFFECT_SETTINGS_CHECKBOX(GizmoLED::VARNAME_RAINBOWENABLED, 1)
 DECLARE_EFFECT_SETTINGS_SLIDER(GizmoLED::VARNAME_RAINBOWSPEED, 10, 1, 100)
@@ -533,11 +533,8 @@ void AnimateFire(float frameTime)
 		{
 			fireCache[l] -= MIN(fireCache[l], (nDecay[l] - 96) * frameTime * decay);
 		}
-	//	Serial.println(String("led: ") + String(l) + String(", noise: ") + String(n[l]));
+		//	Serial.println(String("led: ") + String(l) + String(", noise: ") + String(n[l]));
 	}
-
-	uint8_t adjustedColor[3];
-	uint8_t backgroundColor[3];
 
 	const uint8_t minNoise = 200 - length * 200;
 	if (*fireSettings::rainbowEnabled)
@@ -550,34 +547,42 @@ void AnimateFire(float frameTime)
 		}
 
 		const float rainbowOffset = *fireSettings::rainbowOffset / 360.0f;
+		const float brightnessDelta = (brightness - backgroundBrightness) * 100.0f;
+		const float baseBrightness = backgroundBrightness * 100.0f;
 
-		HSV2RGB(fireRainbowTime * 360.0f, 100.0f, brightness * 100.0f, adjustedColor);
-		HSV2RGB(fmod(fireRainbowTime + rainbowOffset, 1.0f) * 360.0f, 100.0f, backgroundBrightness * 100.0f, backgroundColor);
+		for (int l = 0; l < LED_BUFFER_SIZE_COLLAR; ++l)
+		{
+			float light = map(MAX(minNoise, fireCache[l]), minNoise, 255, 0, 255) / 255.0f;
+			HSV2RGB(fmod(fireRainbowTime + rainbowOffset * light, 1.0f) * 360.0f, 100.0f, baseBrightness + brightnessDelta * light, ledBufferCollar + l * 3);
+		}
 	}
 	else
 	{
+		uint8_t adjustedColor[3];
+		uint8_t backgroundColor[3];
+
 		adjustedColor[0] = fireSettings::color[0] * brightness;
 		adjustedColor[1] = fireSettings::color[1] * brightness;
 		adjustedColor[2] = fireSettings::color[2] * brightness;
 		backgroundColor[0] = fireSettings::background[0] * backgroundBrightness;
 		backgroundColor[1] = fireSettings::background[1] * backgroundBrightness;
 		backgroundColor[2] = fireSettings::background[2] * backgroundBrightness;
-	}
 
-	const int deltaColor[] =
-	{
-	  (int)adjustedColor[0] - (int)backgroundColor[0],
-	  (int)adjustedColor[1] - (int)backgroundColor[1],
-	  (int)adjustedColor[2] - (int)backgroundColor[2]
-	};
+		const int deltaColor[] =
+		{
+		  (int)adjustedColor[0] - (int)backgroundColor[0],
+		  (int)adjustedColor[1] - (int)backgroundColor[1],
+		  (int)adjustedColor[2] - (int)backgroundColor[2]
+		};
 
-	for (int l = 0; l < LED_BUFFER_SIZE_COLLAR; ++l)
-	{
-		float light = map(MAX(minNoise, fireCache[l]), minNoise, 255, 0, 255) / 255.0f;
+		for (int l = 0; l < LED_BUFFER_SIZE_COLLAR; ++l)
+		{
+			float light = map(MAX(minNoise, fireCache[l]), minNoise, 255, 0, 255) / 255.0f;
 
-		ledBufferCollar[l * 3] = light * deltaColor[1] + (int)backgroundColor[1];
-		ledBufferCollar[l * 3 + 1] = light * deltaColor[0] + (int)backgroundColor[0];
-		ledBufferCollar[l * 3 + 2] = light * deltaColor[2] + (int)backgroundColor[2];
+			ledBufferCollar[l * 3] = light * deltaColor[1] + (int)backgroundColor[1];
+			ledBufferCollar[l * 3 + 1] = light * deltaColor[0] + (int)backgroundColor[0];
+			ledBufferCollar[l * 3 + 2] = light * deltaColor[2] + (int)backgroundColor[2];
+		}
 	}
 }
 
